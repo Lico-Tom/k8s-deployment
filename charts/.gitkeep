@@ -1,0 +1,14 @@
+# charts/ 目录（Helm 规范目录之一）
+#
+# 用途：存放本 chart 依赖的子 chart，形式为 .tgz 压缩包或解压后的目录。
+#   - helm dependency update 会把 Chart.yaml 中 dependencies 声明的子 chart 下载到这里
+#   - helm package 会把这里的 .tgz 一起打进父 chart 包
+#   - 子 chart 的 values 可以在父 values.yaml 中以子 chart 名为键覆盖
+#
+# 常见做法：
+#   1. 在 Chart.yaml 的 dependencies 中声明远程子 chart，然后执行：
+#        helm dependency update .
+#   2. 或直接把自建子 chart 目录（含自己的 Chart.yaml）放进这里
+#
+# 注意：本目录必须存在（哪怕为空）。删除会导致 `helm dependency update` 失败。
+# 当前项目未使用子 chart，用 .gitkeep 占位保留目录。

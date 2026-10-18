@@ -1,0 +1,66 @@
+# 预发布环境：与生产同构，规模减半
+# 用法：helm upgrade --install api . -f environments/values-staging.yaml -n staging
+
+replicaCount: 2
+
+image:
+  repository: openapi-generator-python
+  tag: rc
+  pullPolicy: Always
+
+configMap:
+  create: true
+  data:
+    APP_ENV: staging
+    LOG_LEVEL: INFO
+    PYTHONPATH: /app/src
+    UVICORN_HOST: 0.0.0.0
+    UVICORN_PORT: "8080"
+    UVICORN_WORKERS: "2"
+
+secret:
+  create: true
+  data:
+    API_TOKEN: staging-token
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+  hosts:
+    - host: api.staging.example.local
+      paths:
+        - path: /api/v1(/|$)(.*)
+          pathType: ImplementationSpecific
+  tls: []
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 70
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+serviceMonitor:
+  enabled: true
+  interval: 30s
+
+networkPolicy:
+  enabled: false
+
+migrationJob:
+  enabled: true
+  args:
+    - --init

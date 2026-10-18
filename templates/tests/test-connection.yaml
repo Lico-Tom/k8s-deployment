@@ -1,0 +1,38 @@
+{{/*
+Helm 冒烟测试：helm test <release> 时执行。
+用一个临时 Pod 直连 Service 的 /healthz，验证服务确实可达。
+*/}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "chart.fullname" . }}-test-connection
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: hook-succeeded
+spec:
+  restartPolicy: Never
+  {{- if .Values.podSecurityContext.enabled }}
+  securityContext:
+    {{- omit .Values.podSecurityContext "enabled" | toYaml | nindent 4 }}
+  {{- end }}
+  containers:
+    - name: curl
+      image: curlimages/curl:8.11.1
+      imagePullPolicy: IfNotPresent
+      {{- if .Values.securityContext.enabled }}
+      securityContext:
+        {{- omit .Values.securityContext "enabled" | toYaml | nindent 8 }}
+      {{- end }}
+      command:
+        - curl
+      args:
+        - -fsS
+        - --max-time
+        - "10"
+        - http://{{ include "chart.fullname" . }}:{{ .Values.service.port }}/healthz
+  {{- with .Values.nodeSelector }}
+  nodeSelector:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}

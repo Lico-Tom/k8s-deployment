@@ -1,0 +1,41 @@
+# .helmignore 定义打包（helm package）时要排除的文件
+# 语法类似 .gitignore，但有两个关键区别：
+#   1. 不支持 ! 取反（Helm 的 ignore 包不认 !；一行 ! 规则会让整个 chart 加载失败，
+#      报错是极具误导性的 "Chart.yaml file is missing"）
+#   2. 只支持 glob，不支持 ** 递归通配
+# 因此：不要写 !xxx，也不要在这里做"排除全部再取反个别"的花活
+
+# 版本控制与编辑器
+.git/
+.gitignore
+.editorconfig
+.vscode/
+.idea/
+
+# CI / 文档
+.github/
+.gitlab-ci.yml
+docs/
+
+# 本项目的辅助内容：与 chart 渲染无关，不应进入 .tgz
+Makefile
+scripts/
+environments/
+kubeconfig/
+*.kubeconfig
+
+# 常见临时文件
+*.swp
+*.bak
+*.tmp
+*.orig
+.DS_Store
+Thumbs.db
+
+# 密钥与证书：绝对不能打进 chart 包
+*.key
+*.pem
+*.crt
+*.p12
+secrets.yaml
+values.local.yaml

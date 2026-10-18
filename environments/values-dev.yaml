@@ -1,0 +1,68 @@
+# 开发环境：单副本、调试日志、关闭弹性伸缩
+# 用法：helm upgrade --install api . -f environments/values-dev.yaml -n dev
+
+replicaCount: 1
+
+image:
+  repository: openapi-generator-python
+  tag: dev
+  pullPolicy: Always
+
+configMap:
+  create: true
+  data:
+    APP_ENV: development
+    LOG_LEVEL: DEBUG
+    PYTHONPATH: /app/src
+    UVICORN_HOST: 0.0.0.0
+    UVICORN_PORT: "8080"
+    UVICORN_WORKERS: "1"
+
+secret:
+  create: true
+  data:
+    API_TOKEN: dev-token
+
+# 开发分支编译较慢，给足启动时间
+startupProbe:
+  enabled: true
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  failureThreshold: 60
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 96Mi
+  limits:
+    cpu: 300m
+    memory: 256Mi
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+  hosts:
+    - host: api.dev.example.local
+      paths:
+        - path: /api/v1(/|$)(.*)
+          pathType: ImplementationSpecific
+  tls: []
+
+autoscaling:
+  enabled: false
+
+pdb:
+  enabled: false
+
+serviceMonitor:
+  enabled: false
+
+networkPolicy:
+  enabled: false
+
+migrationJob:
+  enabled: true
+  args:
+    - --init

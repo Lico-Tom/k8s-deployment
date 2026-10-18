@@ -1,0 +1,52 @@
+{{- $fullname := include "chart.fullname" . -}}
+{{- $svcPort := .Values.service.port -}}
+{{- $releaseName := .Release.Name -}}
+
+openapi-generator-python 已部署到命名空间 {{ .Release.Namespace }}。
+
+Release: {{ $releaseName }}
+Chart:   {{ .Chart.Name }}-{{ .Chart.Version }}
+App:     {{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}
+
+1) 查看 Pod 状态：
+  kubectl get pods -n {{ .Release.Namespace }} -l "app.kubernetes.io/instance={{ $releaseName }}" -w
+
+2) 查看滚动更新进度：
+  kubectl rollout status deployment/{{ $fullname }} -n {{ .Release.Namespace }}
+
+3) 本地端口转发调试（Ingress 未启用时推荐）：
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ $fullname }} {{ $svcPort }}:{{ $svcPort }}
+  # 然后访问 http://127.0.0.1:{{ $svcPort }}/healthz
+  # Swagger 文档：http://127.0.0.1:{{ $svcPort }}/docs
+
+{{- if .Values.ingress.enabled }}
+4) 外部访问地址（Ingress）：
+{{- range $host := .Values.ingress.hosts }}
+  {{- range .paths }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}{{ .path }}
+  {{- end }}
+{{- end }}
+{{- if .Values.ingress.tls }}
+  注意：Ingress 已启用 TLS，需确认对应的 Secret 已存在：
+  kubectl get secret {{ (first .Values.ingress.tls).secretName }} -n {{ $.Release.Namespace }}
+{{- end }}
+{{- else }}
+4) 当前未启用 Ingress，如需对外暴露：
+  helm upgrade {{ $releaseName }} . -n {{ .Release.Namespace }} --set ingress.enabled=true --set ingress.hosts[0].host=api.example.com
+{{- end }}
+
+{{- if .Values.autoscaling.enabled }}
+5) HPA 已启用（{{ .Values.autoscaling.minReplicas }}~{{ .Values.autoscaling.maxReplicas }} 副本），查看：
+  kubectl get hpa {{ $fullname }} -n {{ .Release.Namespace }}
+{{- end }}
+{{- if .Values.pdb.enabled }}
+6) PodDisruptionBudget 已启用，最小可用副本：{{ .Values.pdb.minAvailable }}
+{{- end }}
+{{- if .Values.migrationJob.enabled }}
+7) 初始化 Job 以 Helm 钩子运行，查看结果：
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=migrate --tail=100
+{{- end }}
+
+回滚方法：
+  helm history {{ $releaseName }} -n {{ .Release.Namespace }}
+  helm rollback {{ $releaseName }} <REVISION> -n {{ .Release.Namespace }}

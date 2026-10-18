@@ -1,0 +1,40 @@
+apiVersion: v2
+name: openapi-generator-python
+description: 使用 Helm 部署由 openapi-generator 生成的 Python（FastAPI）服务到 Kubernetes 集群
+type: application
+
+# chart 版本：每次修改 chart 内容都要递增（遵循语义化版本）
+version: 0.1.0
+# 应用版本：对应被部署的镜像版本，可用 --set image.tag=xxx 覆盖
+appVersion: "0.1.0"
+
+# 声明 K8s 版本约束（helm lint / install 会做校验）
+kubeVersion: ">=1.24.0-0"
+
+# 关键字与元信息，推送到 chart 仓库后用于检索
+keywords:
+  - kubernetes
+  - helm
+  - fastapi
+  - openapi
+  - python
+home: https://example.local/openapi-generator-python
+sources:
+  - https://example.local/openapi-generator-python
+icon: https://example.local/icon.png
+
+# 维护者信息
+maintainers:
+  - name: platform-team
+    url: https://example.local
+
+# 依赖的子 chart（放置到 charts/ 目录的 .tgz 包在这里声明）
+# dependencies:
+#   - name: redis
+#     version: 20.1.7
+#     repository: https://charts.bitnami.com/bitnami
+#     condition: redis.enabled
+
+annotations:
+  # 该 chart 的部署形态说明
+  charts.openapi-generator-python/deploy-target: kubernetes

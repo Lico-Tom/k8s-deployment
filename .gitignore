@@ -1,0 +1,31 @@
+# 打包产物
+dist/
+*.tgz
+
+# 依赖锁文件（通常不提交，CI 重新拉取）
+Chart.lock
+
+# 本地渲染/临时文件
+render.yaml
+rendered/
+kubeconfig/
+*.kubeconfig
+
+# 绝不提交的本地密钥
+values.local.yaml
+values.*.local.yaml
+secrets.yaml
+*.key
+*.pem
+*.crt
+
+# 编辑器与系统
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# charts/ 目录中的子 chart 解压产物由 dependency update 生成，不提交
+charts/*.tgz
+# 注意：charts/ 目录本身要保留（里面有 .gitkeep）

@@ -1,0 +1,303 @@
+# =============================================================================
+# 默认 values。所有环境差异都由 -f environments/values-*.yaml 覆盖，
+# 不要直接改本文件去做环境适配。
+# =============================================================================
+
+# 副本数；开启 autoscaling 时该值被 HPA 接管（仅首次生效）
+replicaCount: 2
+
+# -----------------------------------------------------------------------------
+# 镜像
+# -----------------------------------------------------------------------------
+image:
+  repository: openapi-generator-python
+  # 留空则使用 Chart.AppVersion
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# 私有仓库拉取凭证（需先在集群里创建 docker-registry 类型的 Secret）
+imagePullSecrets: []
+
+# 资源名覆盖：一般只在迁移旧资源时才用，否则别动
+nameOverride: ""
+fullnameOverride: ""
+
+# -----------------------------------------------------------------------------
+# 健康检查：对应 FastAPI 服务暴露的 /healthz
+# -----------------------------------------------------------------------------
+startupProbe:
+  enabled: false
+  httpGet:
+    path: /healthz
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  failureThreshold: 30
+
+livenessProbe:
+  enabled: true
+  httpGet:
+    path: /healthz
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+readinessProbe:
+  enabled: true
+  httpGet:
+    path: /healthz
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 2
+  failureThreshold: 3
+
+# -----------------------------------------------------------------------------
+# 应用配置：通过 ConfigMap 注入环境变量
+# -----------------------------------------------------------------------------
+configMap:
+  # 关闭时改用 configMap.existingName 引用集群里已有的 ConfigMap
+  create: true
+  existingName: ""
+  annotations: {}
+  data:
+    APP_ENV: production
+    LOG_LEVEL: INFO
+    # openapi-generator 产物为 src 布局，PYTHONPATH 必须指向 /app/src
+    PYTHONPATH: /app/src
+    UVICORN_HOST: 0.0.0.0
+    UVICORN_PORT: "8080"
+    UVICORN_WORKERS: "1"
+
+# -----------------------------------------------------------------------------
+# 敏感配置：通过 Secret 注入。生产环境务必改成引用外部 Secret（create: false）
+# -----------------------------------------------------------------------------
+secret:
+  create: true
+  existingName: ""
+  annotations: {}
+  # 值建议由 CI 用 --set-string secret.data.API_TOKEN=xxx 注入，不要提交明文
+  data:
+    API_TOKEN: ""
+
+# -----------------------------------------------------------------------------
+# ServiceAccount / Pod 安全上下文
+# -----------------------------------------------------------------------------
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  enabled: true
+  fsGroup: 10001
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  enabled: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  capabilities:
+    drop:
+      - ALL
+
+# -----------------------------------------------------------------------------
+# Service
+# -----------------------------------------------------------------------------
+service:
+  type: ClusterIP
+  # 固定 IP 时填，否则留空由集群分配
+  clusterIP: ""
+  port: 8080
+  # targetPort 一般与容器端口一致；非 http 命名端口时按需覆盖
+  targetPort: 8080
+  annotations: {}
+  # 仅 NodePort/LoadBalancer 下生效
+  nodePort: ""
+  loadBalancerIP: ""
+  loadBalancerSourceRanges: []
+
+# -----------------------------------------------------------------------------
+# Ingress：openapi 里 servers.url 的 /api/v1 前缀在这里补上
+# -----------------------------------------------------------------------------
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+  hosts:
+    - host: api.example.local
+      paths:
+        - path: /api/v1(/|$)(.*)
+          pathType: ImplementationSpecific
+  tls: []
+  # tls 示例：
+  # tls:
+  #   - secretName: openapi-generator-python-tls
+  #     hosts:
+  #       - api.example.local
+
+# -----------------------------------------------------------------------------
+# 资源配额
+# -----------------------------------------------------------------------------
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# -----------------------------------------------------------------------------
+# HPA（autoscaling/v2，支持行为调优）
+# -----------------------------------------------------------------------------
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: ""
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 15
+
+# -----------------------------------------------------------------------------
+# PodDisruptionBudget：驱逐时保证的最小可用副本
+# -----------------------------------------------------------------------------
+pdb:
+  enabled: false
+  minAvailable: 1
+  maxUnavailable: ""
+
+# -----------------------------------------------------------------------------
+# 持久化（不需要本地卷时保持关闭）
+# -----------------------------------------------------------------------------
+persistence:
+  enabled: false
+  existingClaim: ""
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 1Gi
+  mountPath: /data
+  annotations: {}
+
+# 额外挂载卷（挂载外部 ConfigMap/Secret 时使用）
+extraVolumes: []
+extraVolumeMounts: []
+# 示例：
+# extraVolumes:
+#   - name: ca-certs
+#     configMap:
+#       name: ca-certs
+# extraVolumeMounts:
+#   - name: ca-certs
+#     mountPath: /etc/ssl/certs/ca.crt
+#     subPath: ca.crt
+#     readOnly: true
+
+# -----------------------------------------------------------------------------
+# NetworkPolicy（默认拒绝入站，只放行 Ingress 控制器与同命名空间）
+# -----------------------------------------------------------------------------
+networkPolicy:
+  enabled: false
+  # 允许访问本服务的来源
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - port: 8080
+  # 出站：允许 DNS 与外部访问
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+
+# -----------------------------------------------------------------------------
+# ServiceMonitor（需集群已装 Prometheus Operator）
+# -----------------------------------------------------------------------------
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  labels: {}
+  # 指标路径：FastAPI 默认没有 /metrics，需自行接入 prometheus-fastapi-instrumentator
+  path: /metrics
+  metricRelabelings: []
+  relabelings: []
+
+# -----------------------------------------------------------------------------
+# 迁移/初始化 Job：以 post-install、post-upgrade 钩子形式运行
+# -----------------------------------------------------------------------------
+migrationJob:
+  enabled: false
+  # 钩子失败会阻塞 release 进入 deployed 状态
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "5"
+    helm.sh/hook-delete-policy: before-hook-creation
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 600
+  command: []
+  args:
+    - --init
+
+# -----------------------------------------------------------------------------
+# 调度相关
+# -----------------------------------------------------------------------------
+# 关键业务可设为 system-cluster-critical 以优先调度
+priorityClassName: ""
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+# topologySpreadConstraints 示例（跨可用区打散）：
+# topologySpreadConstraints:
+#   - maxSkew: 1
+#     topologyKey: topology.kubernetes.io/zone
+#     whenUnsatisfiable: ScheduleAnyway
+#     labelSelector:
+#       matchLabels:
+#         app.kubernetes.io/name: openapi-generator-python
+
+# -----------------------------------------------------------------------------
+# 附加到全部资源的标签
+# -----------------------------------------------------------------------------
+commonLabels: {}
+
+# 优雅终止：留给优雅关闭的缓冲时间
+terminationGracePeriodSeconds: 30
